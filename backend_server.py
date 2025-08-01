@@ -31,6 +31,7 @@ from src.main import AutoClipsProcessor
 from src.config import OUTPUT_DIR, CLIPS_DIR, COLLECTIONS_DIR, METADATA_DIR, DASHSCOPE_API_KEY, VideoCategory, VIDEO_CATEGORIES_CONFIG
 # from src.upload.upload_manager import UploadManager, Platform, UploadStatus  # 已移除bilitool相关功能
 from src.utils.bilibili_downloader import BilibiliDownloader, BilibiliVideoInfo, download_bilibili_video, get_bilibili_video_info
+from src.utils.youtube_downloader import YouTubeDownloader, YouTubeVideoInfo, download_youtube_video, get_youtube_video_info
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -132,6 +133,36 @@ class BilibiliDownloadTask(BaseModel):
     created_at: str
     updated_at: str
 
+class YouTubeVideoInfoModel(BaseModel):
+    vid: str
+    title: str
+    duration: float
+    uploader: str
+    description: str
+    thumbnail_url: str
+    view_count: int
+    upload_date: str
+    webpage_url: str
+
+class YouTubeDownloadRequest(BaseModel):
+    url: str
+    project_name: Optional[str] = None
+    video_category: str = "default"
+
+class YouTubeDownloadTask(BaseModel):
+    task_id: str
+    url: str
+    status: str  # 'pending', 'downloading', 'processing', 'completed', 'error'
+    progress: float
+    status_message: str
+    video_info: Optional[YouTubeVideoInfoModel] = None
+    video_path: Optional[str] = None
+    subtitle_path: Optional[str] = None
+    project_id: Optional[str] = None
+    error: Optional[str] = None
+    created_at: str
+    updated_at: str
+
 # 全局状态管理
 class ProjectManager:
     def __init__(self):
@@ -144,6 +175,7 @@ class ProjectManager:
         self.current_processing_count = 0
         # self.upload_manager = UploadManager()  # 已移除bilitool相关功能
         self.bilibili_tasks: Dict[str, BilibiliDownloadTask] = {}  # B站下载任务
+        self.youtube_tasks: Dict[str, YouTubeDownloadTask] = {}  # YouTube下载任务
         self.load_projects()
     
     def load_projects(self):
@@ -311,6 +343,46 @@ class ProjectManager:
     def list_bilibili_tasks(self) -> List[BilibiliDownloadTask]:
         """列出所有B站下载任务"""
         return list(self.bilibili_tasks.values())
+    
+    def create_youtube_download_task(self, url: str, project_name: Optional[str] = None, 
+                                   video_category: str = "default") -> str:
+        """创建YouTube下载任务"""
+        task_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        
+        task = YouTubeDownloadTask(
+            task_id=task_id,
+            url=url,
+            status="pending",
+            progress=0.0,
+            status_message="等待开始下载",
+            created_at=now,
+            updated_at=now
+        )
+        
+        self.youtube_tasks[task_id] = task
+        return task_id
+    
+    def get_youtube_task(self, task_id: str) -> Optional[YouTubeDownloadTask]:
+        """获取YouTube下载任务"""
+        return self.youtube_tasks.get(task_id)
+    
+    def update_youtube_task(self, task_id: str, **updates) -> Optional[YouTubeDownloadTask]:
+        """更新YouTube下载任务"""
+        if task_id not in self.youtube_tasks:
+            return None
+        
+        task = self.youtube_tasks[task_id]
+        for key, value in updates.items():
+            if hasattr(task, key):
+                setattr(task, key, value)
+        
+        task.updated_at = datetime.now().isoformat()
+        return task
+    
+    def list_youtube_tasks(self) -> List[YouTubeDownloadTask]:
+        """列出所有YouTube下载任务"""
+        return list(self.youtube_tasks.values())
 
 # 初始化项目管理器
 project_manager = ProjectManager()
@@ -540,6 +612,81 @@ async def get_bilibili_download_task(task_id: str):
 async def list_bilibili_download_tasks():
     """列出所有B站下载任务"""
     tasks = project_manager.list_bilibili_tasks()
+    # 按创建时间倒序排列
+    tasks.sort(key=lambda x: x.created_at, reverse=True)
+    return {"tasks": tasks}
+
+# YouTube视频相关API
+@app.post("/api/youtube/parse")
+async def parse_youtube_video(url: str = Form(...)):
+    """解析YouTube视频信息"""
+    try:
+        # 验证URL格式
+        downloader = YouTubeDownloader()
+        if not downloader.validate_youtube_url(url):
+            raise HTTPException(status_code=400, detail="无效的YouTube视频链接")
+        
+        # 获取视频信息
+        video_info = await get_youtube_video_info(url)
+        
+        return {
+            "success": True,
+            "video_info": video_info.to_dict()
+        }
+    except Exception as e:
+        logger.error(f"解析YouTube视频失败: {e}")
+        raise HTTPException(status_code=400, detail=f"解析视频信息失败: {str(e)}")
+
+@app.post("/api/youtube/download")
+async def create_youtube_download_task(
+    background_tasks: BackgroundTasks,
+    request: YouTubeDownloadRequest
+):
+    """创建YouTube视频下载任务"""
+    try:
+        # 验证URL格式
+        downloader = YouTubeDownloader()
+        if not downloader.validate_youtube_url(request.url):
+            raise HTTPException(status_code=400, detail="无效的YouTube视频链接")
+        
+        # 创建下载任务
+        task_id = project_manager.create_youtube_download_task(
+            url=request.url,
+            project_name=request.project_name,
+            video_category=request.video_category
+        )
+        
+        # 启动后台下载任务
+        background_tasks.add_task(
+            process_youtube_download_task,
+            task_id,
+            request.url,
+            request.project_name,
+            request.video_category
+        )
+        
+        return {
+            "success": True,
+            "task_id": task_id,
+            "message": "下载任务已创建"
+        }
+    except Exception as e:
+        logger.error(f"创建YouTube下载任务失败: {e}")
+        raise HTTPException(status_code=500, detail=f"创建下载任务失败: {str(e)}")
+
+@app.get("/api/youtube/tasks/{task_id}")
+async def get_youtube_download_task(task_id: str):
+    """获取YouTube下载任务状态"""
+    task = project_manager.get_youtube_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    return task
+
+@app.get("/api/youtube/tasks")
+async def list_youtube_download_tasks():
+    """列出所有YouTube下载任务"""
+    tasks = project_manager.list_youtube_tasks()
     # 按创建时间倒序排列
     tasks.sort(key=lambda x: x.created_at, reverse=True)
     return {"tasks": tasks}
@@ -863,6 +1010,125 @@ async def process_bilibili_download_task(
         
         # 更新任务状态为失败
         project_manager.update_bilibili_task(
+            task_id,
+            status="error",
+            status_message=error_msg,
+            error=error_msg,
+            progress=0
+        )
+        
+        # 清理临时文件
+        try:
+            temp_download_dir = Path("./temp_downloads") / task_id
+            if temp_download_dir.exists():
+                shutil.rmtree(temp_download_dir)
+        except Exception as cleanup_error:
+            logger.warning(f"清理临时文件失败: {cleanup_error}")
+
+async def process_youtube_download_task(
+    task_id: str, 
+    url: str, 
+    project_name: Optional[str] = None,
+    video_category: str = "default"
+):
+    """处理YouTube视频下载任务"""
+    try:
+        # 更新任务状态
+        project_manager.update_youtube_task(
+            task_id,
+            status="downloading",
+            status_message="正在获取视频信息..."
+        )
+        
+        # 获取视频信息
+        video_info = await get_youtube_video_info(url)
+        
+        # 更新任务信息
+        project_manager.update_youtube_task(
+            task_id,
+            video_info=YouTubeVideoInfoModel(**video_info.to_dict()),
+            status_message="开始下载视频和字幕..."
+        )
+        
+        # 创建临时下载目录
+        temp_download_dir = Path("./temp_downloads") / task_id
+        temp_download_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 定义进度回调函数
+        def progress_callback(status_msg: str, progress: float):
+            project_manager.update_youtube_task(
+                task_id,
+                progress=progress,
+                status_message=status_msg
+            )
+        
+        # 下载视频和字幕
+        downloader = YouTubeDownloader(temp_download_dir)
+        download_result = await downloader.download_video_and_subtitle(url, progress_callback)
+        
+        if not download_result['video_path']:
+            raise Exception("视频下载失败")
+        
+        # 更新任务状态
+        project_manager.update_youtube_task(
+            task_id,
+            status="processing",
+            status_message="正在创建项目...",
+            video_path=download_result['video_path'],
+            subtitle_path=download_result['subtitle_path'],
+            progress=90
+        )
+        
+        # 创建项目
+        project_id = str(uuid.uuid4())
+        project_dir = Path("./uploads") / project_id
+        input_dir = project_dir / "input"
+        input_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 移动文件到项目目录
+        video_src = Path(download_result['video_path'])
+        video_dst = input_dir / "input.mp4"
+        shutil.move(str(video_src), str(video_dst))
+        
+        subtitle_dst = None
+        if download_result['subtitle_path']:
+            subtitle_src = Path(download_result['subtitle_path'])
+            subtitle_dst = input_dir / "input.srt"
+            shutil.move(str(subtitle_src), str(subtitle_dst))
+        
+        # 清理临时目录
+        try:
+            shutil.rmtree(temp_download_dir)
+        except Exception as e:
+            logger.warning(f"清理临时目录失败: {e}")
+        
+        # 创建项目记录
+        final_project_name = project_name or video_info.title
+        relative_video_path = f"uploads/{project_id}/input/input.mp4"
+        project = project_manager.create_project(
+            final_project_name, 
+            relative_video_path, 
+            project_id, 
+            video_category
+        )
+        
+        # 更新任务状态为完成
+        project_manager.update_youtube_task(
+            task_id,
+            status="completed",
+            status_message="项目创建完成",
+            project_id=project_id,
+            progress=100
+        )
+        
+        logger.info(f"YouTube视频下载任务完成: {task_id}, 项目ID: {project_id}")
+        
+    except Exception as e:
+        error_msg = f"下载失败: {str(e)}"
+        logger.error(f"YouTube视频下载任务失败 {task_id}: {error_msg}")
+        
+        # 更新任务状态为失败
+        project_manager.update_youtube_task(
             task_id,
             status="error",
             status_message=error_msg,

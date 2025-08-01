@@ -1,16 +1,17 @@
 # AutoClip - AI-Powered Video Clipping Tool
 
-🎬 An intelligent video clipping and collection recommendation system based on AI, supporting automatic Bilibili video download, subtitle extraction, intelligent slicing, and collection generation.
+🎬 An intelligent video clipping and collection recommendation system based on AI, supporting automatic video download from multiple platforms (Bilibili & YouTube), subtitle extraction, intelligent slicing, and collection generation.
 
 ## ✨ Features
 
 - 🔥 **Intelligent Video Clipping**: AI-powered video content analysis for high-quality automatic clipping
-- 📺 **Bilibili Video Download**: Support for automatic Bilibili video download and subtitle extraction
+- 📺 **Multi-Platform Video Download**: Support for automatic video download and subtitle extraction from Bilibili and YouTube
 - 🎯 **Smart Collection Recommendations**: AI automatically analyzes slice content and recommends related collections
 - 🎨 **Manual Collection Editing**: Support drag-and-drop sorting, adding/removing slices
 - 📦 **One-Click Package Download**: Support one-click package download for all slices and collections
 - 🌐 **Modern Web Interface**: React + TypeScript + Ant Design
 - ⚡ **Real-time Processing Status**: Real-time display of processing progress and logs
+- 🌍 **YouTube Integration**: Full support for YouTube video processing with automatic subtitle download
 
 ## 🚀 Quick Start
 
@@ -19,6 +20,7 @@
 - Python 3.8+
 - Node.js 16+
 - DashScope API Key (for AI analysis)
+- yt-dlp (for YouTube video download, included in requirements.txt)
 
 ### Installation
 
@@ -137,7 +139,8 @@ autoclip_mvp/
 │   │   ├── text_processor.py  # Text processing
 │   │   ├── project_manager.py # Project management
 │   │   ├── error_handler.py   # Error handling
-│   │   └── bilibili_downloader.py # Bilibili downloader
+│   │   ├── bilibili_downloader.py # Bilibili downloader
+│   │   └── youtube_downloader.py  # YouTube downloader
 │   └── upload/            # File upload
 │       └── upload_manager.py
 │
@@ -196,11 +199,18 @@ Support for Chrome, Firefox, Safari and other browsers for Bilibili video downlo
 4. Fill in project name and category
 5. Click "Start Processing"
 
-### 2. Download Bilibili Video
-1. Click "Bilibili Video Download" on homepage
+### 2. Download Video from Platforms
+#### Bilibili Video Download
+1. Click "Video Link Import" on homepage  
 2. Enter Bilibili video link (must be a video with subtitles)
 3. Select browser (for login status)
 4. Click "Start Download"
+
+#### YouTube Video Download
+1. Click "Video Link Import" on homepage
+2. Enter YouTube video link (supports various YouTube URL formats)
+3. Select project category
+4. Click "Start Download" - the system will automatically download video and subtitles
 
 ### 3. Edit Collections
 1. Enter project detail page
@@ -238,10 +248,26 @@ npm run lint   # Code linting
 2. Add corresponding prompt template files
 3. Add category options in frontend `src/services/api.ts`
 
+### Supported Video Platforms
+- **Bilibili**: Supports most Bilibili video formats and automatic subtitle extraction
+- **YouTube**: Supports standard YouTube video URLs and playlist links with automatic subtitle download
+- **Local Upload**: Supports uploading local video files with custom subtitle files
+
+### API Endpoints
+- **YouTube**: `/api/youtube/parse`, `/api/youtube/download`, `/api/youtube/tasks`
+- **Bilibili**: `/api/bilibili/parse`, `/api/bilibili/download`, `/api/bilibili/tasks`
+- **Projects**: `/api/projects`, `/api/projects/{id}/process`
+
 ## 🐛 FAQ
 
 ### Q: Bilibili video download failed?
 A: Make sure you're logged into your Bilibili account and select the correct browser. Chrome browser is recommended.
+
+### Q: YouTube video download failed?
+A: Ensure you have a stable internet connection and that the YouTube video is publicly accessible. Some private or region-restricted videos may not be downloadable.
+
+### Q: No subtitles found for YouTube video?
+A: The system automatically tries to download Chinese subtitles first, then English. If no subtitles are available, automatic subtitle generation will be attempted.
 
 ### Q: AI analysis is slow?
 A: You can adjust the `chunk_size` parameter. Smaller values will improve speed but may affect quality.

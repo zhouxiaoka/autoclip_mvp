@@ -363,6 +363,40 @@ export const projectApi = {
   }
 }
 
+// YouTube相关接口类型
+export interface YouTubeVideoInfo {
+  vid: string
+  title: string
+  description: string
+  duration: number
+  uploader: string
+  upload_date: string
+  view_count: number
+  thumbnail_url: string
+  webpage_url: string
+}
+
+export interface YouTubeDownloadRequest {
+  url: string
+  project_name: string
+  video_category?: string
+}
+
+export interface YouTubeDownloadTask {
+  task_id: string
+  url: string
+  status: string
+  progress: number
+  status_message: string
+  video_info?: YouTubeVideoInfo
+  video_path?: string
+  subtitle_path?: string
+  project_id?: string
+  error?: string
+  created_at: string
+  updated_at: string
+}
+
 // B站相关API
 export const bilibiliApi = {
   // 解析B站视频信息
@@ -392,6 +426,35 @@ export const bilibiliApi = {
   // 获取所有下载任务
   getAllTasks: async (): Promise<BilibiliDownloadTask[]> => {
     return api.get('/bilibili/tasks')
+  }
+}
+
+// YouTube相关API
+export const youtubeApi = {
+  // 解析YouTube视频信息
+  parseVideoInfo: async (url: string): Promise<{success: boolean, video_info: YouTubeVideoInfo}> => {
+    const formData = new FormData()
+    formData.append('url', url)
+    return api.post('/youtube/parse', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+
+  // 创建YouTube下载任务
+  createDownloadTask: async (data: YouTubeDownloadRequest): Promise<YouTubeDownloadTask> => {
+    return api.post('/youtube/download', data)
+  },
+
+  // 获取下载任务状态
+  getTaskStatus: async (taskId: string): Promise<YouTubeDownloadTask> => {
+    return api.get(`/youtube/tasks/${taskId}`)
+  },
+
+  // 获取所有下载任务
+  getAllTasks: async (): Promise<YouTubeDownloadTask[]> => {
+    return api.get('/youtube/tasks')
   }
 }
 

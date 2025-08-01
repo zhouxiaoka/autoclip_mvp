@@ -10,7 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import ProjectCard from '../components/ProjectCard'
 import FileUpload from '../components/FileUpload'
-import BilibiliDownload from '../components/BilibiliDownload'
+import VideoDownload from '../components/VideoDownload'
 
 import { projectApi } from '../services/api'
 import { Project, useProjectStore } from '../store/useProjectStore'
@@ -189,7 +189,7 @@ const HomePage: React.FC = () => {
               {/* 内容区域 */}
               <div>
                 {activeTab === 'bilibili' && (
-                  <BilibiliDownload onDownloadSuccess={async (projectId: string) => {
+                  <VideoDownload onDownloadSuccess={async (projectId: string) => {
                     // 处理完成后刷新项目列表
                     await loadProjects()
                     
