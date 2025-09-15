@@ -1,3 +1,20 @@
+> 🚨 **Deprecated / 项目已迁移**
+>
+> 本仓库（`autoclip_mvp`）是早期 MVP 版本，已停止维护，仅保留历史记录。
+>
+> 👉 新仓库请移步：**[autoclip](https://github.com/zhouxiaoka/autoclip)**
+>
+> 最新特性、修复和版本发布都会在新仓库进行。
+>
+> # 项目已迁移至 autoclip 🚀
+
+本仓库 `autoclip_mvp` 是 Autoclip 的最初 MVP 版本，目前已停止维护。  
+感谢大家一路以来的支持！❤️  
+
+👉 新仓库地址：https://github.com/zhouxiaoka/autoclip  
+
+请前往新仓库继续关注和使用。
+
 # AutoClip - 智能视频切片工具
 
 🎬 基于AI的智能视频切片和合集推荐系统，支持从B站视频自动下载、字幕提取、智能切片和合集生成。
